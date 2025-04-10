@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package message;
+
+option go_package = ".;protocol";
+
+enum EventStatus {
+  EVENT_STATUS_UNSPECIFIED = 0;
+  EVENT_STATUS_PENDING = 1;
+  EVENT_STATUS_STARTED = 2;
+  EVENT_STATUS_FINISHED = 3;
+  EVENT_STATUS_FAILED = 4;
+}
+
+// MessagingService defines one RPC to send a message.
+service MessagingService {
+  // SendMessage sends a message to the server. Used in simple examples.
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {}
+  // NewEvent sends an event to the server. Used in event-driven examples.
+  rpc NewEvent(NewEventRequest) returns (NewEventResponse) {}
+  // EventStatus checks the status of an event.
+  rpc EventStatus(EventStatusRequest) returns (EventStatusResponse) {}
+}
+
+// MessageRequest contains the message content.
+message SendMessageRequest {
+  string content = 1;
+  // The correlationId will be set by the server.
+  string correlation_id = 2;
+}
+
+// MessageResponse contains the echo reply.
+message SendMessageResponse {
+  string ack = 1;
+  string correlation_id = 2;
+}
+
+message Event {
+  string event_type = 1;
+  string correlation_id = 2;
+}
+
+// NewEventRequest contains the event type.
+message NewEventRequest {
+  string correlation_id = 1;
+  string event_type = 2;
+  bytes payload = 3;
+  bool simulate_failure = 4;
+}
+
+// NewEventResponse returns the ack and correlationID to signal the event was received and queued.
+message NewEventResponse {
+  bool ack = 1;
+  Event event = 2;
+}
+
+// EventStatusRequest is used to check the status of an event.
+message EventStatusRequest {
+  string correlation_id = 1;
+}
+
+// EventStatusResponse returns the status of an event.
+message EventStatusResponse {
+  EventStatus status = 1;
+  Event event = 2;
+}

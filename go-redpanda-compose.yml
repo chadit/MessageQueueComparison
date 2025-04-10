@@ -1,0 +1,169 @@
+services:
+  redpanda1:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda1
+    volumes:
+      - redpanda-data1:/var/lib/redpanda/data
+    environment:
+      - REDPANDA_AUTO_CREATE_TOPICS=true
+      - REDPANDA_SEEDS=redpanda1
+      - REDPANDA_NODE_ID=1
+    ports:
+      - "9092:9092" # Kafka API
+      - "8081:8081" # Admin API
+      - "8082:8082" # Pandaproxy API
+      - "9644:9644" # Monitoring API
+      - "33145:33145" # Internal RPC for cluster coordination
+    # Run storage format if needed and then start Kafka using the KRaft configuration.
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --node-id 1
+      - --check=false
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda1:9092
+      - --rpc-addr=PLAINTEXT://0.0.0.0:33145
+      - --advertise-rpc-addr=PLAINTEXT://redpanda1:33145
+    restart: always
+
+  redpanda2:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda2
+    volumes:
+      - redpanda-data2:/var/lib/redpanda/data
+    environment:
+      - REDPANDA_AUTO_CREATE_TOPICS=true
+      - REDPANDA_SEEDS=redpanda1
+      - REDPANDA_NODE_ID=2
+    ports:
+      - "9093:9092" # Map redpanda2's Kafka API to host port 9093
+      - "33146:33145" # Map internal RPC port (if needed)
+      - "9645:9644" # Monitoring API
+    # Run storage format if needed and then start Kafka using the KRaft configuration.
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --node-id 2
+      - --check=false
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda2:9092
+      - --rpc-addr=PLAINTEXT://0.0.0.0:33145
+      - --advertise-rpc-addr=PLAINTEXT://redpanda2:33145
+      - --seeds redpanda1:33145
+    restart: always
+
+  redpanda3:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda3
+    volumes:
+      - redpanda-data3:/var/lib/redpanda/data
+    environment:
+      - REDPANDA_AUTO_CREATE_TOPICS=true
+      - REDPANDA_SEEDS=redpanda1
+      - REDPANDA_NODE_ID=3
+    ports:
+      - "9094:9092" # Map redpanda3's Kafka API to host port 9094
+      - "33147:33145" # Map internal RPC port (if needed)
+      - "9646:9644" # Monitoring API
+    # Run storage format if needed and then start Kafka using the KRaft configuration.
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --node-id 3
+      - --check=false
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda3:9092
+      - --rpc-addr=PLAINTEXT://0.0.0.0:33145
+      - --advertise-rpc-addr=PLAINTEXT://redpanda3:33145
+      - --seeds redpanda1:33145
+    restart: always
+
+  controller:
+    build:
+      context: .
+      dockerfile: go/cmd/redpanda/controller/Dockerfile
+    container_name: controller
+    restart: always
+    depends_on:
+      - redpanda1
+      - redpanda2
+      - redpanda3
+    environment:
+      # Ensure your controler reads this to connect to redpanda
+      - KAFKA_BROKER=redpanda1:9092,redpanda2:9092,redpanda3:9092
+      # - KAFKA_BROKER=redpanda1:9092
+    ports:
+      - "50051:50051"
+    command: ["sh", "-c", "sleep 40 && ./controller"]
+
+  client1:
+    build:
+      context: .
+      dockerfile: go/cmd/client/Dockerfile
+    container_name: client1
+    restart: always
+    environment:
+      # The client uses this to connect to the controller
+      GRPC_SERVER_ADDRESS: controller:50051
+    depends_on:
+      - redpanda1
+      - redpanda2
+      - redpanda3
+      - controller
+      - consumer1
+      - consumer2
+    command: ["sh", "-c", "sleep 40 && ./client"]
+
+  consumer1:
+    build:
+      context: .
+      dockerfile: go/cmd/redpanda/consumer/Dockerfile
+    container_name: consumer1
+    # restart: always
+    environment:
+      - KAFKA_BROKER=redpanda1:9092,redpanda2:9092,redpanda3:9092
+      # - KAFKA_BROKER=redpanda1:9092
+      - GROUP_ID=mia1.processing
+      - SUPPORTED_EVENTS=create,deploy,clone,delete,list
+      - REQUEST_TOPIC=mia1.event # only listens for topics added to this partition.
+      - SIMULATE_FAILURE=false # Simulate failure from a random message for testing, simulates failover of message processing.
+    depends_on:
+      - redpanda1
+      - redpanda2
+      - redpanda3
+      - controller
+    command: ["sh", "-c", "sleep 30 && ./consumer"]
+
+  consumer2:
+    build:
+      context: .
+      dockerfile: go/cmd/redpanda/consumer/Dockerfile
+    container_name: consumer2
+    # restart: always
+    environment:
+      - KAFKA_BROKER=redpanda1:9092,redpanda2:9092,redpanda3:9092
+      # - KAFKA_BROKER=redpanda1:9092
+      - GROUP_ID=mia1.processing
+      - SUPPORTED_EVENTS=create,deploy,clone,delete,list
+      - REQUEST_TOPIC=mia1.event # only listens for topics added to this partition.
+      - SIMULATE_FAILURE=false # Simulate failure from a random message for testing, simulates failover of message processing.
+    depends_on:
+      - redpanda1
+      - redpanda2
+      - redpanda3
+      - controller
+    command: ["sh", "-c", "sleep 30 && ./consumer"]
+
+volumes:
+  redpanda-data1:
+  redpanda-data2:
+  redpanda-data3:
