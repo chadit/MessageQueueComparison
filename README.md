@@ -1,56 +1,46 @@
-# MessageQueueComparison
+# Message Queue Comparison
 
-Highlight and compare different message and event streaming services
+## Overview
+This repository provides live examples of different message and event streaming services. The goal is to demonstrate how to use these services and compare their performance.
 
-## Introduction
+## Supported Services
+- [NATS JetStream](go/cmd/nats-jetstream/README.md): Learn more about the NATS JetStream implementation, including its components and usage.
+- [Redpanda](go/cmd/redpanda/README.md): Learn more about the Redpanda implementation, including its components and usage.
 
-These are meant to be live examples of different message and event streaming services.  The goal is to provide a simple example of how to use the service, and to compare the performance of the different services.
-
-## Services
-
-The following services have examples in this project:
-
-- [Redpanda](https://www.redpanda.com/)
-- [NATS](https://nats.io/)
-
-... more to come
-
-## Languages
-
-The comparison is done using the following programming languages:
-
+## Programming Languages
 - [Go](https://golang.org/)
 
-... and more to come.
-
 ## Terminology
-
-Due to the nature of the project, a comon terminology is utilized in an attempt to make the project easier to understand. 
-
-The following terms are used:
-- **namespace**: is a logical identifier for a grouping or region for the queue system. This can be utilized to isolate messages to a specific region.  Ex. `dev`, `test`, `prod`, `us`, `eu`, etc.  this is used to prefix streams, topics, and headers.
-- **group_id**: is utilized to identify the services that is consuming the messages. Ex. `consumer1`, `consumer2`, etc.
-- **topic**: is a subject or the identifier for the message. This is used to identify the message in the queue system. Ex. `event.us.created`, `event.us.updated`, etc.
+To maintain consistency across the project, the following terms are used:
+- **namespace**: A logical identifier for grouping or isolating messages (e.g., `dev`, `test`, `prod`, `us`, `eu`). Used to prefix streams, topics, and headers.
+- **group_id**: Identifies the service consuming the messages (e.g., `consumer1`, `consumer2`).
+- **topic**: A subject or identifier for the message (e.g., `event.us.created`, `event.us.updated`).
 
 ## Process
 
 ### Client
-
-- Utilizes a list of events to create randomized events.
-- Each event is sent to the controller via gRPC.
-  - controller returns an acknowledgment for the event.
-  - controller returns a correlation ID for the new event.
-  - correlation ID is saved in an inmemory map with the datetime of the event.
-- Client checks for a status update for each event by calling the controller via gRPC.
-  - when the event is returned completed, the client removes the event from the inmemory map, and logs out the time it took to complete the event.
+- Generates randomized events from a predefined list.
+- Sends events to the controller via gRPC.
+  - Receives acknowledgment and a correlation ID for each event.
+  - Stores the correlation ID in an in-memory map with the event's timestamp.
+- Periodically checks the status of each event by querying the controller via gRPC.
+  - Logs the time taken to complete the event once marked as completed.
 
 ### Controller
+- Receives events from the client via gRPC.
+- Publishes events to the message broker.
+- Manages event status and interacts with the database.
 
-- Receives the event from the client via gRPC.
-- Sends the event to the events message broker.
+### Consumer
+- Subscribes to topics or streams.
+- Processes incoming messages in real-time.
+- Executes actions based on the event type.
 
+## Deployment
+The project includes Docker Compose files for setting up the environments:
+- `go-nats-jetstream-compose.yml`: Sets up the NATS JetStream environment.
+- `go-redpanda-compose.yml`: Sets up the Redpanda environment.
 
-
-## TODO:
-[] - Fix unit test, they are currently a mess and currently setup to just check things, they are not good examples of how to write test code.
+## TODO
+- [ ] Improve unit tests to serve as better examples of test code.
 

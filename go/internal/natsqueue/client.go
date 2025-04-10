@@ -172,42 +172,14 @@ func (q *Queue[T]) getStream(ctx context.Context, parentStream jetstream.JetStre
 
 //nolint:ireturn // ignore return value of jetstream.Consumer.
 func (q *Queue[T]) getConsumer(ctx context.Context, parentStream jetstream.JetStream, stream jetstream.Stream) (jetstream.Consumer, error) {
-	// consumer, err := stream.Consumer(ctx, q.consumerName)
-	// if err != nil {
-	// 	// return the error if it is not a consumer not found error.
-	// 	// if the consumer is not found, the consumer will be created.
-	// 	if !errors.Is(err, jetstream.ErrConsumerNotFound) {
-	// 		//nolint:wrapcheck // wrap will happen at the call site.
-	// 		return nil, err
-	// 	}
-	// }
-
-	// // if consumer was found, return it.
-	// // before the consumer is returned, check if the subjects for the consumer need to be updated.
-	// // this allows the consumer to be dynamic as new events are added in the future.
-	// if consumer != nil {
-	// 	if err = addSubjectIfNotExists(ctx, parentStream, q.streamName, q.consumerSubjects); err != nil {
-	// 		return nil, fmt.Errorf("failed to add subjects to stream: %w", err)
-	// 	}
-
-	// 	consumerFilters, err := getConsumerSubject(ctx, consumer)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("failed to get consumer subject: %w", err)
-	// 	}
-
-	// 	q.logger.Debug("consumer found", "name", q.consumerName, "subjects", consumerFilters)
-
-	// 	return consumer, nil
-	// }
-
 	// CreateOrUpdateConsumer will update the consumer if it exists, or create it if it does not exist.
 	// this will also update the subjects for the consumer if they have changed.
 	consumer, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		Name:           q.consumerName, // Consumer name, must be the same as the durable name if set.
-		Durable:        q.consumerName, // durable prevents messages from being cleaned up automatically.
-		AckPolicy:      jetstream.AckExplicitPolicy,
-		DeliverPolicy:  jetstream.DeliverLastPolicy, // jetstream.DeliverAllPolicy,
-		ReplayPolicy:   jetstream.ReplayInstantPolicy,
+		Name:           q.consumerName,                // Consumer name, must be the same as the durable name if set.
+		Durable:        q.consumerName,                // durable prevents messages from being cleaned up automatically.
+		AckPolicy:      jetstream.AckExplicitPolicy,   // messages wait for ack before being removed.
+		DeliverPolicy:  jetstream.DeliverAllPolicy,    // deliver all messages.
+		ReplayPolicy:   jetstream.ReplayInstantPolicy, // replay messages instantly.
 		FilterSubjects: q.consumerSubjects,
 	})
 	if err != nil {
@@ -219,62 +191,3 @@ func (q *Queue[T]) getConsumer(ctx context.Context, parentStream jetstream.JetSt
 
 	return consumer, nil
 }
-
-// addSubjectIfNotExists adds a new subject to the stream if it does not already exist.
-// func addSubjectIfNotExists(ctx context.Context, parentStream jetstream.JetStream, streamName string, subjects []string) error {
-// 	stream, err := parentStream.Stream(ctx, streamName)
-// 	if err != nil {
-// 		// if jetstream has not been established yet this can be ignored.
-// 		if errors.Is(err, jetstream.ErrStreamNotFound) {
-// 			return nil
-// 		}
-
-// 		return fmt.Errorf("failed to get stream: %w", err)
-// 	}
-
-// 	info, err := stream.Info(ctx)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to get stream info: %w", err)
-// 	}
-
-// 	cfg := info.Config
-
-// 	var update bool
-
-// 	for _, newSubject := range subjects {
-// 		// Check if subject already exists.
-// 		if slices.Contains(cfg.Subjects, newSubject) {
-// 			continue
-// 		}
-
-// 		// Add new subject
-// 		update = true
-
-// 		cfg.Subjects = append(cfg.Subjects, newSubject)
-// 	}
-
-// 	// If no new subjects were added, return early.
-// 	if !update {
-// 		return nil
-// 	}
-
-// 	// Apply update
-// 	if _, err := parentStream.UpdateStream(ctx, cfg); err != nil {
-// 		return fmt.Errorf("failed to update stream with new subject: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// func getConsumerSubject(ctx context.Context, consumer jetstream.Consumer) ([]string, error) {
-// 	if consumer == nil {
-// 		return nil, fmt.Errorf("consumer is nil")
-// 	}
-
-// 	info, err := consumer.Info(ctx)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to get consumer info: %w", err)
-// 	}
-
-// 	return info.Config.FilterSubjects, nil
-// }
